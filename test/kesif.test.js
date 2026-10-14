@@ -47,7 +47,8 @@ function sahte({ api = {}, acik = [] }) {
       if (!api[ip]) throw new Error('bağlantı reddedildi');
       return { durum: 200, govde: JSON.stringify(api[ip]) };
     },
-    async portAcikMi(ip, port) { return acik.includes(`${ip}:${port}`); },
+    // api cevabı veren adreste 8001 açıktır
+    async portAcikMi(ip, port) { return acik.includes(`${ip}:${port}`) || (port === 8001 && !!api[ip]); },
     async yerelIp() { return '192.168.18.20'; },
   };
 }
@@ -84,5 +85,10 @@ test('tusKodu: ortak ve nesle göre', () => {
   assert.equal(tusKodu('guc', 'sifreli'), 'KEY_POWEROFF');
   assert.equal(tusKodu('guc', 'tizen'), 'KEY_POWER');
   assert.equal(tusKodu('7', 'eski'), 'KEY_7');
-  assert.throws(() => tusKodu('yok', 'tizen'), /bilinmeyen/);
+  assert.throws(() => tusKodu('yok', 'tizen'), /yok/);
+  assert.throws(() => tusKodu('ok', 'philips'), /bilinmeyen/);
+  assert.equal(tusKodu('ses+', 'androidtv'), 24);
+  assert.equal(tusKodu('0', 'androidtv'), 7);
+  assert.equal(tusKodu('guc', 'lg'), 'ssap://system/turnOff');
+  assert.equal(tusKodu('ok', 'roku'), 'Select');
 });

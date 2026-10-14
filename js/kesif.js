@@ -1,11 +1,21 @@
-// Ağdaki Samsung TV'leri bulur ve neslini tespit eder.
+// Ağdaki televizyonları bulur ve türünü tespit eder.
 // SSDP/multicast kullanılmaz (iOS'ta Apple izni gerekir); telefonun /24 alt ağı taranır.
+// Her adreste bütün portlar aynı anda yoklanır, sonra yalnız açık olanlar ayrıntılı sorgulanır.
 
-const API_PORT = 8001;
-const ESKI_PORT = 55000;
+const PORTLAR = {
+  samsungApi: 8001,
+  samsungEski: 55000,
+  samsungEslesme: 8080,
+  samsungKomut: 8000,
+  androidtv: 6466,
+  lgGuvenli: 3001,
+  lg: 3000,
+  roku: 8060,
+  cast: 8008,
+};
 
 /**
- * `:8001/api/v2/` cevabından nesil ve ayrıntılar.
+ * Samsung `:8001/api/v2/` cevabından nesil ve ayrıntılar.
  * @returns {{nesil: 'sifreli'|'tizen', ad: string, model: string, duid: string, tokenGerekli: boolean} | null}
  */
 export function nesilBul(api) {
@@ -23,22 +33,61 @@ export function nesilBul(api) {
   };
 }
 
+function xmlAlan(xml, ad) {
+  const m = new RegExp(`<${ad}>([^<]*)</${ad}>`, 'i').exec(xml || '');
+  return m ? m[1].trim() : '';
+}
+
+async function getir(tasima, url, zamanAsimi) {
+  try {
+    const c = await tasima.http({ yontem: 'GET', url, zamanAsimi });
+    return c.durum === 200 ? c.govde : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Tek bir adresi yoklar; TV değilse null. */
 export async function adresYokla(tasima, ip, zamanAsimi = 1500) {
-  try {
-    const c = await tasima.http({ yontem: 'GET', url: `http://${ip}:${API_PORT}/api/v2/`, zamanAsimi });
-    if (c.durum === 200) {
-      const tv = nesilBul(JSON.parse(c.govde));
-      if (tv) return { ip, ...tv };
-    }
-  } catch { /* 8001 kapalı ya da cevap JSON değil */ }
+  const adlar = Object.keys(PORTLAR);
+  const acik = {};
+  const sonuc = await Promise.all(adlar.map((a) => tasima.portAcikMi(ip, PORTLAR[a], zamanAsimi).catch(() => false)));
+  adlar.forEach((a, i) => { acik[a] = sonuc[i]; });
 
-  if (await tasima.portAcikMi(ip, ESKI_PORT, zamanAsimi)) {
+  if (acik.samsungApi) {
+    const govde = await getir(tasima, `http://${ip}:8001/api/v2/`, zamanAsimi);
+    try {
+      const tv = govde && nesilBul(JSON.parse(govde));
+      if (tv) return { ip, ...tv };
+    } catch { /* JSON değil */ }
+  }
+  if (acik.samsungEski) {
     return { ip, nesil: 'eski', ad: 'Samsung TV', model: '', duid: 'eski-' + ip, tokenGerekli: false };
   }
   // H/J serisi açılırken 8001 bir süre kapalı kalabiliyor (ölçüldü); şifreli eşleştirme portları açıksa yine bulunur.
-  if (await tasima.portAcikMi(ip, 8080, zamanAsimi) && await tasima.portAcikMi(ip, 8000, zamanAsimi)) {
+  if (acik.samsungEslesme && acik.samsungKomut) {
     return { ip, nesil: 'sifreli', ad: 'Samsung TV', model: '', duid: 'sifreli-' + ip, tokenGerekli: false };
+  }
+  if (acik.androidtv) {
+    // Chromecast yerleşik TV'ler adını :8008'de verir
+    const xml = acik.cast ? await getir(tasima, `http://${ip}:8008/ssdp/device-desc.xml`, zamanAsimi) : null;
+    return {
+      ip, nesil: 'androidtv', ad: xmlAlan(xml, 'friendlyName') || 'Android TV',
+      model: [xmlAlan(xml, 'manufacturer'), xmlAlan(xml, 'modelName')].filter(Boolean).join(' '),
+      duid: 'androidtv-' + ip, tokenGerekli: false,
+    };
+  }
+  if (acik.roku) {
+    const xml = await getir(tasima, `http://${ip}:8060/query/device-info`, zamanAsimi);
+    if (xml && /<device-info>/i.test(xml)) {
+      return {
+        ip, nesil: 'roku', ad: xmlAlan(xml, 'friendly-device-name') || xmlAlan(xml, 'user-device-name') || 'Roku',
+        model: xmlAlan(xml, 'model-name'), duid: xmlAlan(xml, 'serial-number') || 'roku-' + ip, tokenGerekli: false,
+      };
+    }
+  }
+  if (acik.lgGuvenli || acik.lg) {
+    return { ip, nesil: 'lg', ad: 'LG TV', model: 'webOS', duid: 'lg-' + ip, tokenGerekli: false };
   }
   return null;
 }
