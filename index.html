@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0B0F17">
+<title>Kumandam</title>
+<link rel="stylesheet" href="css/stil.css">
+</head>
+<body>
+
+<header class="ust">
+  <button class="tv-adi" id="tvAdi" aria-label="Televizyonu değiştir">
+    <span class="nokta" id="durumNokta"></span>
+    <span id="tvAdiMetin">Kumandam</span>
+  </button>
+  <button class="tus guc" data-tus="guc" aria-label="Aç / Kapat">⏻</button>
+</header>
+
+<!-- TV arama -->
+<section class="ekran" id="ekranTarama" hidden>
+  <h1>Televizyonunu bul</h1>
+  <p class="aciklama" id="taramaDurum">Ağdaki Samsung televizyonlar aranıyor…</p>
+  <div class="donen" id="taramaDonen"></div>
+  <ul class="tv-listesi" id="tvListesi"></ul>
+  <div class="satir">
+    <button class="dugme ikincil" id="tekrarAra">Tekrar ara</button>
+  </div>
+  <details class="elle">
+    <summary>IP adresini elle gir</summary>
+    <form id="elleForm" class="satir">
+      <input id="elleIp" inputmode="decimal" placeholder="192.168.1.50" autocomplete="off">
+      <button class="dugme" type="submit">Bağlan</button>
+    </form>
+  </details>
+  <p class="not">Telefon ile televizyon aynı Wi-Fi ağında olmalı. İlk açılışta iPhone "yerel ağ" izni sorar; izin vermezsen televizyon bulunamaz.</p>
+</section>
+
+<!-- Eşleştirme -->
+<section class="ekran" id="ekranEslesme" hidden>
+  <h1 id="eslesmeBaslik">Televizyonla eşleş</h1>
+  <form id="pinForm" hidden>
+    <p class="aciklama">Televizyon ekranındaki 4 haneli PIN'i gir.</p>
+    <input id="pinGiris" class="pin" inputmode="numeric" maxlength="4" pattern="\d{4}" autocomplete="one-time-code">
+    <div class="satir">
+      <button class="dugme" type="submit">Eşleştir</button>
+      <button class="dugme ikincil" type="button" id="pinYenile">PIN'i yeniden göster</button>
+    </div>
+  </form>
+  <div id="izinBekle" hidden>
+    <div class="donen"></div>
+    <p class="aciklama">Televizyon ekranında çıkan soruya kumandayla <b>İzin ver</b> de.</p>
+  </div>
+  <p class="hata" id="eslesmeHata"></p>
+  <button class="dugme ikincil" id="baskaTv">Başka televizyon seç</button>
+</section>
+
+<!-- Kumanda -->
+<main class="ekran kumanda" id="ekranKumanda" hidden>
+  <div class="satir ust-tuslar">
+    <button class="tus" data-tus="kaynak">Kaynak</button>
+    <button class="tus" data-tus="smarthub">Smart Hub</button>
+    <button class="tus" id="youtubeTus">YouTube</button>
+    <button class="tus" id="klavyeTus" hidden>Klavye</button>
+  </div>
+
+  <div class="orta">
+    <div class="sutun">
+      <button class="tus yuvarlak" data-tus="ses+" data-tekrar aria-label="Ses artır">＋</button>
+      <span class="etiket">SES</span>
+      <button class="tus yuvarlak" data-tus="ses-" data-tekrar aria-label="Ses azalt">－</button>
+      <button class="tus kucuk" data-tus="sessiz" aria-label="Sessiz">🔇</button>
+    </div>
+
+    <div class="yon">
+      <button class="tus yon-tus yukari" data-tus="yukari" data-tekrar aria-label="Yukarı">▲</button>
+      <button class="tus yon-tus sol" data-tus="sol" data-tekrar aria-label="Sol">◀</button>
+      <button class="tus yon-tus ok" data-tus="ok">OK</button>
+      <button class="tus yon-tus sag" data-tus="sag" data-tekrar aria-label="Sağ">▶</button>
+      <button class="tus yon-tus asagi" data-tus="asagi" data-tekrar aria-label="Aşağı">▼</button>
+    </div>
+
+    <div class="sutun">
+      <button class="tus yuvarlak" data-tus="kanal+" data-tekrar aria-label="Kanal ileri">⌃</button>
+      <span class="etiket">KANAL</span>
+      <button class="tus yuvarlak" data-tus="kanal-" data-tekrar aria-label="Kanal geri">⌄</button>
+      <button class="tus kucuk" data-tus="kanalListesi" aria-label="Kanal listesi">☰</button>
+    </div>
+  </div>
+
+  <div class="satir">
+    <button class="tus" data-tus="geri">↩ Geri</button>
+    <button class="tus" data-tus="menu">Menü</button>
+    <button class="tus" data-tus="cik">Çık</button>
+  </div>
+
+  <nav class="sekmeler" role="tablist">
+    <button role="tab" data-sekme="rakam" aria-selected="true">Rakamlar</button>
+    <button role="tab" data-sekme="medya">Medya</button>
+    <button role="tab" data-sekme="dokunmatik">Dokunmatik</button>
+  </nav>
+
+  <div class="sekme" id="sekme-rakam">
+    <div class="rakamlar">
+      <button class="tus" data-tus="1">1</button><button class="tus" data-tus="2">2</button><button class="tus" data-tus="3">3</button>
+      <button class="tus" data-tus="4">4</button><button class="tus" data-tus="5">5</button><button class="tus" data-tus="6">6</button>
+      <button class="tus" data-tus="7">7</button><button class="tus" data-tus="8">8</button><button class="tus" data-tus="9">9</button>
+      <button class="tus" data-tus="oncekiKanal">Önceki</button><button class="tus" data-tus="0">0</button><button class="tus" data-tus="info">Info</button>
+    </div>
+  </div>
+
+  <div class="sekme" id="sekme-medya" hidden>
+    <div class="satir">
+      <button class="tus" data-tus="gerisar" data-tekrar aria-label="Geri sar">⏪</button>
+      <button class="tus" data-tus="oynat" aria-label="Oynat">▶</button>
+      <button class="tus" data-tus="duraklat" aria-label="Duraklat">⏸</button>
+      <button class="tus" data-tus="durdur" aria-label="Durdur">⏹</button>
+      <button class="tus" data-tus="ilerisar" data-tekrar aria-label="İleri sar">⏩</button>
+    </div>
+    <div class="satir renkler">
+      <button class="tus kirmizi" data-tus="kirmizi" aria-label="Kırmızı">A</button>
+      <button class="tus yesil" data-tus="yesil" aria-label="Yeşil">B</button>
+      <button class="tus sari" data-tus="sari" aria-label="Sarı">C</button>
+      <button class="tus mavi" data-tus="mavi" aria-label="Mavi">D</button>
+    </div>
+    <div class="satir">
+      <button class="tus" data-tus="rehber">Rehber</button>
+      <button class="tus" data-tus="araclar">Araçlar</button>
+    </div>
+  </div>
+
+  <div class="sekme" id="sekme-dokunmatik" hidden>
+    <div class="mod-secici" id="modSecici" hidden>
+      <button data-mod="yon" aria-pressed="true">Yön</button>
+      <button data-mod="fare" aria-pressed="false">Fare</button>
+    </div>
+    <div class="dokunmatik" id="dokunmatik">
+      <span id="dokunmatikIpucu">Kaydır: yön · Dokun: OK · Basılı tut: geri</span>
+    </div>
+  </div>
+</main>
+
+<!-- Klavye -->
+<div class="katman" id="klavyeKatman" hidden>
+  <form class="klavye" id="klavyeForm">
+    <input id="klavyeGiris" placeholder="Televizyona yaz…" autocomplete="off" enterkeyhint="send">
+    <div class="satir">
+      <button class="dugme" type="submit">Gönder</button>
+      <button class="dugme ikincil" type="button" id="klavyeKapat">Kapat</button>
+    </div>
+  </form>
+</div>
+
+<div class="bildirim" id="bildirim" role="status" hidden></div>
+
+<script type="module" src="js/uygulama.js"></script>
+</body>
+</html>
