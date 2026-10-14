@@ -22,7 +22,14 @@ function sahteTasima(cevaplar) {
       kayit.push({ yontem: 'WS', url });
       olaylar = o;
       queueMicrotask(() => o.mesaj('1::'));
-      return { gonder: (m) => gonderilen.push(m), kapat() {} };
+      return {
+        gonder: (m) => {
+          gonderilen.push(m);
+          // gerçek TV gibi ad alanı katılımını onayla
+          if (m === '1::/com.samsung.companion') queueMicrotask(() => o.mesaj('1::/com.samsung.companion'));
+        },
+        kapat() {},
+      };
     },
   };
 }
@@ -36,13 +43,18 @@ test('pinGoster: önce PIN sayfası, sonra step=0', async () => {
   ]);
 });
 
-test('pinGir: TV cevap vermezse "PIN yanlış"', async () => {
-  const t = sahteTasima([{ durum: 200, govde: '{"auth_data":""}' }]);
+test('pinGir: step=0 sonra step=1; TV kısa hata kodu dönerse "PIN yanlış"', async () => {
+  // UE40H6200'ün yanlış kimlik/PIN'de gerçekten döndüğü cevap
+  const kisa = JSON.stringify({ auth_data: JSON.stringify({ auth_type: 'SPC', request_id: '1', GeneratorClientHello: '019A000000000000000000' }) });
+  const t = sahteTasima([{ durum: 200, govde: '{"auth_data":""}' }, { durum: 200, govde: kisa }]);
   const a = new SifreliAdaptor(t, '10.0.0.5', 'cihaz-1');
-  await assert.rejects(a.pinGir('1234'), /PIN yanlış/);
-  const govde = JSON.parse(t.kayit[0].govde);
+  await assert.rejects(a.pinGir('1234'), /PIN yanlış ya da süresi doldu/);
+  assert.match(t.kayit[0].url, /step=0&.*&type=1$/);
+  assert.match(t.kayit[1].url, /step=1&/);
+  const govde = JSON.parse(t.kayit[1].govde);
   assert.equal(govde.auth_Data.auth_type, 'SPC');
-  assert.match(govde.auth_Data.GeneratorServerHello, /^0102000000000000000089000000053132333435/);
+  // kullanıcı kimliği '654321' (6 bayt → uzunluk 0x8A); '12345' TV'de reddedildi
+  assert.match(govde.auth_Data.GeneratorServerHello, /^010200000000000000008A00000006363534333231/);
 });
 
 test('baglan + tus: socket.io el sıkışması ve şifreli callCommon çerçevesi', async () => {

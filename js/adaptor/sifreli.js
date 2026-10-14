@@ -7,6 +7,9 @@ import { sunucuMerhaba, istemciMerhabaCoz, sunucuOnay, istemciOnayDogrula, komut
 import { hexBayt, baytHex } from '../kripto/yardimci.js';
 
 const UYG_KIMLIK = '12345';
+// El sıkışmadaki kullanıcı kimliği. UE40H6200 '12345' ile kısa hata kodu (019A…) döndü,
+// referans uygulamalardaki '654321' ile tam ClientHello döndü (2026-10-14 ölçüm).
+const KULLANICI_KIMLIK = '654321';
 const AD_ALANI = '/com.samsung.companion';
 
 function authData(cevap) {
@@ -50,13 +53,17 @@ export class SifreliAdaptor {
 
   /** PIN ile el sıkışmayı bitirir; saklanacak kimliği döner. */
   async pinGir(pin) {
-    const merhaba = sunucuMerhaba(UYG_KIMLIK, pin);
+    await this.istek('GET', this.eslesmeAdresi(0) + '&type=1');
+    const merhaba = sunucuMerhaba(KULLANICI_KIMLIK, pin);
     const c1 = await this.istek('POST', this.eslesmeAdresi(1), JSON.stringify({
       auth_Data: { auth_type: 'SPC', GeneratorServerHello: merhaba.merhabaHex },
     }));
     const a1 = authData(c1);
-    if (!a1 || !a1.GeneratorClientHello) throw new Error('PIN yanlış');
-    const { skPrime, oturumAnahtari } = istemciMerhabaCoz(UYG_KIMLIK, merhaba.anahtar, a1.GeneratorClientHello);
+    // Yanlış PIN ya da süresi dolmuş PIN sayfasında TV kısa bir hata kodu döner (örn. 019A000000000000000000).
+    if (!a1 || !a1.GeneratorClientHello || a1.GeneratorClientHello.length < 328) {
+      throw new Error('PIN yanlış ya da süresi doldu');
+    }
+    const { skPrime, oturumAnahtari } = istemciMerhabaCoz(KULLANICI_KIMLIK, merhaba.anahtar, a1.GeneratorClientHello);
 
     const c2 = await this.istek('POST', this.eslesmeAdresi(2), JSON.stringify({
       auth_Data: { auth_type: 'SPC', request_id: a1.request_id, ServerAckMsg: sunucuOnay(skPrime) },
@@ -89,9 +96,12 @@ export class SifreliAdaptor {
       // TV ilk mesajı wsAc sözü çözülmeden gönderebilir; cevaplar söz üzerinden gider.
       const wsSoz = this.tasima.wsAc(`ws://${this.ip}:8000/socket.io/1/websocket/${sid}`, {
         mesaj: (m) => wsSoz.then((ws) => {
-          if (m.startsWith('1::') && !acildi) {
-            acildi = true;
+          // Önce TV "1::" der, biz ad alanına katılırız; TV "1::/com.samsung.companion"
+          // ile onaylamadan gönderilen ilk komut kaybolabiliyor.
+          if (m === '1::') {
             ws.gonder('1::' + AD_ALANI);
+          } else if (m.startsWith('1::' + AD_ALANI) && !acildi) {
+            acildi = true;
             tamam();
           } else if (m.startsWith('2::')) {
             ws.gonder('2::');
