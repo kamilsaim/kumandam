@@ -371,5 +371,7 @@ function olaylariBagla() {
   });
 }
 
+// Yerel ağ izni notu yalnız iPhone'da
+$('iosNot').hidden = window.Capacitor?.getPlatform?.() !== 'ios';
 olaylariBagla();
 if (tv) baglan(); else taramayiBaslat();
