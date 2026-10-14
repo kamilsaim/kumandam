@@ -29,6 +29,7 @@ export class SifreliAdaptor {
     this.cihazKimlik = cihazKimlik;
     this.ws = null;
     this.kimlik = null; // { anahtarHex, oturumId }
+    this.olay = () => {}; // ('koptu')
   }
 
   yetenekler() {
@@ -110,6 +111,7 @@ export class SifreliAdaptor {
         kapandi: () => {
           this.ws = null;
           if (!acildi) hata(new Error('komut kanalı açılamadı'));
+          else this.olay('koptu');
         },
       });
       wsSoz.then((ws) => { this.ws = ws; }, hata);
