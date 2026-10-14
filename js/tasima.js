@@ -110,6 +110,13 @@ export function yerelMi() {
 }
 
 export function tasimaOlustur() {
-  if (yerelMi()) return yerelTasima(window.Capacitor.registerPlugin('TVSoket'));
+  if (yerelMi()) return yerelTasima(yerelEklenti('TVSoket'));
   return tarayiciTasima();
+}
+
+// Bundler olmadan @capacitor/core yüklenmez; yerel köprünün Plugins vekili kullanılır
+// (sinerji-ios'ta SinerjiYerel aynı yolla çalışıyor). registerPlugin varsa yedek.
+export function yerelEklenti(ad) {
+  const C = window.Capacitor;
+  return C?.Plugins?.[ad] ?? C?.registerPlugin?.(ad) ?? null;
 }

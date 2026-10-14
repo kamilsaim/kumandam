@@ -1,5 +1,5 @@
 // Kumandam — arayüz ve akış: tarama → eşleştirme → kumanda.
-import { tasimaOlustur, yerelMi } from './tasima.js';
+import { tasimaOlustur, yerelMi, yerelEklenti } from './tasima.js';
 import { agiTara, adresYokla } from './kesif.js';
 import { tusKodu } from './tuslar.js';
 import { SifreliAdaptor } from './adaptor/sifreli.js';
@@ -8,7 +8,7 @@ import { EskiAdaptor } from './adaptor/eski.js';
 
 const $ = (id) => document.getElementById(id);
 const tasima = tasimaOlustur();
-const Titresim = yerelMi() ? window.Capacitor.registerPlugin('Haptics') : null;
+const Titresim = yerelMi() ? yerelEklenti('Haptics') : null;
 
 // ---------- Kalıcı kayıt (yalnız bu cihazda) ----------
 const depo = {
