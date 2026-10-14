@@ -115,7 +115,9 @@ test('keşif: Android TV açıklaması yoksa varsayılan ad', async () => {
 test('keşif: Roku ve LG', async () => {
   const roku = await adresYokla(sahte([8060], { ':8060/': '<device-info><friendly-device-name>Oda</friendly-device-name><model-name>Roku Express</model-name></device-info>' }), '10.0.0.4');
   assert.deepEqual([roku.nesil, roku.ad, roku.model], ['roku', 'Oda', 'Roku Express']);
-  const lg = await adresYokla(sahte([3001]), '10.0.0.5');
+  const lg = await adresYokla({ ...sahte([3001]), wsAc: async () => ({ kapat() {} }) }, '10.0.0.5');
+  // port açık ama WebSocket konuşmuyorsa LG sayılmaz (ör. Espressif akıllı priz)
+  assert.equal(await adresYokla({ ...sahte([3000]), wsAc: async () => { throw new Error('protokol'); } }, '10.0.0.7'), null);
   assert.equal(lg.nesil, 'lg');
   // 8060 açık ama Roku cevabı değilse Roku sayılmaz
   assert.equal(await adresYokla(sahte([8060], { ':8060/': 'hello' }), '10.0.0.6'), null);

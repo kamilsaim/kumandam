@@ -5,6 +5,10 @@ import { tusKodu } from './tuslar.js';
 import { SifreliAdaptor } from './adaptor/sifreli.js';
 import { TizenAdaptor } from './adaptor/tizen.js';
 import { EskiAdaptor } from './adaptor/eski.js';
+import { AndroidTvAdaptor } from './adaptor/androidtv.js';
+import { LgAdaptor } from './adaptor/lg.js';
+import { RokuAdaptor } from './adaptor/roku.js';
+import { sertifikaUret, baytBase64, base64Bayt } from './kripto/sertifika.js';
 
 const $ = (id) => document.getElementById(id);
 const tasima = tasimaOlustur();
@@ -64,7 +68,7 @@ async function taramayiBaslat() {
   const liste = $('tvListesi');
   liste.innerHTML = '';
   $('taramaDonen').hidden = false;
-  $('taramaDurum').textContent = 'Ağdaki Samsung televizyonlar aranıyor…';
+  $('taramaDurum').textContent = 'Ağdaki televizyonlar aranıyor…';
 
   const ekle = (bulunan) => {
     const li = document.createElement('li');
@@ -81,7 +85,7 @@ async function taramayiBaslat() {
     const bulunan = await agiTara(tasima, { eslesti: ekle });
     $('taramaDurum').textContent = bulunan.length
       ? (bulunan.length === 1 ? 'Televizyon bulundu.' : 'Hangi televizyonu kumanda edeceksin?')
-      : 'Televizyon bulunamadı. Televizyon açık ve aynı Wi-Fi ağında mı?';
+      : 'Televizyon bulunamadı. Televizyon açık ve aynı Wi-Fi ağında mı? Şu an Samsung, Android TV, LG ve Roku destekleniyor.';
     if (bulunan.length === 1 && !depo.oku('tv')) tvSec(bulunan[0]);
   } catch (e) {
     $('taramaDurum').textContent = e.message;
@@ -104,10 +108,33 @@ function tvSec(secilen) {
 }
 
 // ---------- Bağlantı ----------
+// Android TV istemci sertifikası: cihaz başına bir kez üretilir, bütün Android TV'lerde aynısı kullanılır.
+const SERTIFIKA_ALANLARI = ['sertifika', 'pkcs8', 'pkcs1', 'modulus', 'us'];
+async function istemciSertifikasi() {
+  const kayit = depo.oku('atvSertifika');
+  if (kayit) return Object.fromEntries(SERTIFIKA_ALANLARI.map((a) => [a, base64Bayt(kayit[a])]));
+  bildir('İlk kullanım: güvenlik sertifikası hazırlanıyor…', 4000);
+  const s = await sertifikaUret('Kumandam');
+  depo.yaz('atvSertifika', Object.fromEntries(SERTIFIKA_ALANLARI.map((a) => [a, baytBase64(s[a])])));
+  return s;
+}
+
 function adaptorOlustur() {
-  if (tv.nesil === 'sifreli') return new SifreliAdaptor(tasima, tv.ip, cihazKimligi());
-  if (tv.nesil === 'tizen') return new TizenAdaptor(tasima, tv.ip, tv);
-  return new EskiAdaptor(tasima, tv.ip, cihazKimligi());
+  switch (tv.nesil) {
+    case 'sifreli': return new SifreliAdaptor(tasima, tv.ip, cihazKimligi());
+    case 'tizen': return new TizenAdaptor(tasima, tv.ip, tv);
+    case 'androidtv': return new AndroidTvAdaptor(tasima, tv.ip, istemciSertifikasi);
+    case 'lg': return new LgAdaptor(tasima, tv.ip);
+    case 'roku': return new RokuAdaptor(tasima, tv.ip);
+    default: return new EskiAdaptor(tasima, tv.ip, cihazKimligi());
+  }
+}
+
+// Eşleşme kodu: Samsung H/J 4 rakam, Android TV 6 haneli onaltılık (0-9, A-F)
+function kodBicimi() {
+  return tv?.nesil === 'androidtv'
+    ? { uzunluk: 6, desen: /^[0-9A-F]{6}$/i, metin: 'Televizyon ekranındaki 6 haneli kodu gir (rakam ve A–F harfleri).', klavye: 'text' }
+    : { uzunluk: 4, desen: /^\d{4}$/, metin: "Televizyon ekranındaki 4 haneli PIN'i gir.", klavye: 'numeric' };
 }
 
 function kimlikAnahtari() { return 'kimlik.' + (tv.duid || tv.ip); }
@@ -156,6 +183,8 @@ function bagliOldu() {
   // H/J'de SendInputString YouTube'da reddedildi (0001); klavye yalnız destekleyen nesilde.
   $('klavyeTus').hidden = !y.klavye;
   $('modSecici').hidden = !y.fare;
+  // 2013 öncesi Samsung'da DIAL yok
+  $('youtubeTus').hidden = tv.nesil === 'eski';
   if (!y.fare) modSec('yon');
 }
 
@@ -177,6 +206,8 @@ function adaptorOlayi(ad, deger) {
     yenidenBaglanmayiPlanla();
   } else if (ad === 'klavye' && deger && adaptor.yetenekler().klavye) {
     klavyeAc();
+  } else if (ad === 'hata') {
+    bildir(deger);
   }
 }
 
@@ -187,7 +218,17 @@ function eslesmeGoster(tur) {
   $('pinForm').hidden = tur !== 'pin';
   $('izinBekle').hidden = tur !== 'izin';
   $('eslesmeBaslik').textContent = tv.ad + ' ile eşleş';
-  if (tur === 'pin') { $('pinGiris').value = ''; $('pinGiris').focus(); }
+  if (tur === 'pin') {
+    const k = kodBicimi();
+    const g = $('pinGiris');
+    g.maxLength = k.uzunluk;
+    g.inputMode = k.klavye;
+    g.setAttribute('autocapitalize', k.klavye === 'text' ? 'characters' : 'off');
+    g.classList.toggle('pin-uzun', k.uzunluk > 4);
+    $('pinAciklama').textContent = k.metin;
+    g.value = '';
+    g.focus();
+  }
 }
 
 let pinGonderiliyor = false;
@@ -201,7 +242,7 @@ async function pinGonder(pin) {
     depo.yaz(kimlikAnahtari(), kimlik);
     await baglan();
   } catch (e) {
-    $('eslesmeHata').textContent = /PIN/.test(e.message) ? 'PIN tutmadı. Ekrandaki PIN\'i tekrar gir.' : e.message;
+    $('eslesmeHata').textContent = /PIN|Kod yanlış/.test(e.message) ? 'Kod tutmadı. Ekrandakini tekrar gir.' : e.message;
     $('pinGiris').value = '';
   } finally {
     pinGonderiliyor = false;
@@ -324,10 +365,18 @@ function klavyeKapat() {
 async function youtubeAc() {
   if (!tv) return;
   try {
-    const c = await tasima.http({ yontem: 'POST', url: `http://${tv.ip}:8080/ws/apps/YouTube`, govde: '', zamanAsimi: 6000 });
-    if (c.durum >= 200 && c.durum < 300) { titret(); bildir('YouTube açılıyor…'); } else bildir('YouTube açılamadı (' + c.durum + ')');
-  } catch {
-    bildir('YouTube açılamadı');
+    if (adaptor?.youtube) {
+      // Android TV, LG, Roku: kendi uygulama başlatma komutu
+      await adaptor.youtube();
+    } else {
+      // Samsung: DIAL
+      const c = await tasima.http({ yontem: 'POST', url: `http://${tv.ip}:8080/ws/apps/YouTube`, govde: '', zamanAsimi: 6000 });
+      if (c.durum < 200 || c.durum >= 300) throw new Error(String(c.durum));
+    }
+    titret();
+    bildir('YouTube açılıyor…');
+  } catch (e) {
+    bildir('YouTube açılamadı' + (e.message ? ' (' + e.message + ')' : ''));
   }
 }
 
@@ -343,8 +392,8 @@ function olaylariBagla() {
   $('baskaTv').onclick = () => { adaptor?.kapat(); taramayiBaslat(); };
   $('elleForm').onsubmit = (e) => { e.preventDefault(); const ip = $('elleIp').value.trim(); if (ip) elleBaglan(ip); };
 
-  $('pinForm').onsubmit = (e) => { e.preventDefault(); const p = $('pinGiris').value.trim(); if (/^\d{4}$/.test(p)) pinGonder(p); };
-  $('pinGiris').oninput = () => { if (/^\d{4}$/.test($('pinGiris').value)) pinGonder($('pinGiris').value); };
+  $('pinForm').onsubmit = (e) => { e.preventDefault(); const p = $('pinGiris').value.trim(); if (kodBicimi().desen.test(p)) pinGonder(p); };
+  $('pinGiris').oninput = () => { const p = $('pinGiris').value.trim(); if (kodBicimi().desen.test(p)) pinGonder(p); };
   $('pinYenile').onclick = () => adaptor?.pinGoster().catch((e) => { $('eslesmeHata').textContent = e.message; });
 
   $('youtubeTus').onclick = youtubeAc;

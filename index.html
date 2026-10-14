@@ -40,8 +40,8 @@
 <section class="ekran" id="ekranEslesme" hidden>
   <h1 id="eslesmeBaslik">Televizyonla eşleş</h1>
   <form id="pinForm" hidden>
-    <p class="aciklama">Televizyon ekranındaki 4 haneli PIN'i gir.</p>
-    <input id="pinGiris" class="pin" inputmode="numeric" maxlength="4" pattern="\d{4}" autocomplete="one-time-code">
+    <p class="aciklama" id="pinAciklama">Televizyon ekranındaki 4 haneli PIN'i gir.</p>
+    <input id="pinGiris" class="pin" inputmode="numeric" maxlength="4" autocomplete="one-time-code" autocorrect="off" spellcheck="false">
     <div class="satir">
       <button class="dugme" type="submit">Eşleştir</button>
       <button class="dugme ikincil" type="button" id="pinYenile">PIN'i yeniden göster</button>

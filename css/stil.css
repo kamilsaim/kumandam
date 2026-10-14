@@ -178,3 +178,4 @@ h1 { font-size: 24px; margin: 18px 0 0; }
   .yuvarlak { width: 52px; height: 52px; }
   .yon { max-width: 200px; }
 }
+.pin.pin-uzun { font-size: 30px; letter-spacing: .3em; padding-left: .3em; text-transform: uppercase; }

@@ -86,17 +86,30 @@ export async function adresYokla(tasima, ip, zamanAsimi = 1500) {
       };
     }
   }
-  if (acik.lgGuvenli || acik.lg) {
+  // 3000 başka cihazlarda da açık olabiliyor (evde bir Espressif akıllı cihaz LG sanıldı):
+  // gerçekten WebSocket konuşuyorsa LG say.
+  if ((acik.lgGuvenli && await wsAcilirMi(tasima, `wss://${ip}:3001`, zamanAsimi))
+    || (acik.lg && await wsAcilirMi(tasima, `ws://${ip}:3000`, zamanAsimi))) {
     return { ip, nesil: 'lg', ad: 'LG TV', model: 'webOS', duid: 'lg-' + ip, tokenGerekli: false };
   }
   return null;
+}
+
+async function wsAcilirMi(tasima, url, zamanAsimi) {
+  let ws;
+  const ac = tasima.wsAc(url, { mesaj() {}, kapandi() {} }, { kendiImzaliKabul: true })
+    .then((w) => { ws = w; return true; }, () => false);
+  const sonuc = await Promise.race([ac, new Promise((r) => setTimeout(() => r(false), zamanAsimi))]);
+  ac.then((tamam) => { if (tamam) ws?.kapat(); });
+  return sonuc;
 }
 
 /**
  * Telefonun alt ağını tarar. eslesti(tv) her bulunan TV için çağrılır.
  * @returns {Promise<Array>} bulunan TV'ler
  */
-export async function agiTara(tasima, { yerelIp, eslesti = () => {}, paralel = 32, zamanAsimi = 1500 } = {}) {
+// 32/1500 ölçümde beklemedeki Samsung'u kaçırdı; 40/2000 ~14 sn'de buluyor (192.168.18.0/24, 2026-10-14).
+export async function agiTara(tasima, { yerelIp, eslesti = () => {}, paralel = 40, zamanAsimi = 2000 } = {}) {
   const ip = yerelIp || (await tasima.yerelIp());
   const m = /^(\d+\.\d+\.\d+)\.(\d+)$/.exec(ip || '');
   if (!m) throw new Error('Wi-Fi ağına bağlı değilsiniz');
