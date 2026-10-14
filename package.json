@@ -1,0 +1,10 @@
+{
+  "name": "kumandam",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Kumandam — Samsung Smart TV'ler için iPhone kumandası (HTML arayüz + protokol adaptörleri).",
+  "scripts": {
+    "test": "node --test"
+  }
+}
