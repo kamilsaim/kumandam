@@ -5,6 +5,6 @@
   "type": "module",
   "description": "Kumandam — Samsung Smart TV'ler için iPhone kumandası (HTML arayüz + protokol adaptörleri).",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test --test-timeout=5000"
   }
 }
