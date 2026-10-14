@@ -179,3 +179,22 @@ h1 { font-size: 24px; margin: 18px 0 0; }
   .yon { max-width: 200px; }
 }
 .pin.pin-uzun { font-size: 30px; letter-spacing: .3em; padding-left: .3em; text-transform: uppercase; }
+
+/* Hakkında */
+.ust-sag { display: flex; align-items: center; gap: 8px; }
+.hakkinda-tus { width: 44px; height: 44px; border-radius: 50%; color: var(--soluk); display: flex; align-items: center; justify-content: center; }
+.hakkinda-tus:active { background: var(--yuzey); color: var(--metin); }
+.katman.ortali { align-items: center; justify-content: center; }
+.hakkinda {
+  width: 100%; max-width: 480px; max-height: calc(100vh - 48px); overflow-y: auto;
+  background: var(--yuzey2); border-radius: 20px; padding: 22px 20px 18px;
+  -webkit-user-select: text; user-select: text;
+}
+.hakkinda h2 { margin: 0; font-size: 22px; }
+.hakkinda h3 { margin: 18px 0 6px; font-size: 15px; color: var(--vurgu); }
+.hakkinda p, .hakkinda li { color: var(--metin); font-size: 14px; line-height: 1.5; }
+.hakkinda p { margin: 6px 0; }
+.hakkinda ol, .hakkinda ul { margin: 0; padding-left: 20px; }
+.hakkinda .surum { color: var(--soluk); font-size: 13px; margin-top: 2px; }
+.hakkinda .not { margin: 16px 0 14px; }
+.hakkinda .dugme { width: 100%; }

@@ -10,6 +10,7 @@ import { LgAdaptor } from './adaptor/lg.js';
 import { RokuAdaptor } from './adaptor/roku.js';
 import { sertifikaUret, baytBase64, base64Bayt } from './kripto/sertifika.js';
 
+const SURUM = '1.1';
 const $ = (id) => document.getElementById(id);
 const tasima = tasimaOlustur();
 const Titresim = yerelMi() ? yerelEklenti('Haptics') : null;
@@ -397,6 +398,10 @@ function olaylariBagla() {
   $('pinYenile').onclick = () => adaptor?.pinGoster().catch((e) => { $('eslesmeHata').textContent = e.message; });
 
   $('youtubeTus').onclick = youtubeAc;
+  $('surumMetin').textContent = 'Sürüm ' + SURUM + ' · reklamsız ve ücretsiz';
+  $('hakkindaTus').onclick = () => { $('hakkindaKatman').hidden = false; };
+  $('hakkindaKapat').onclick = () => { $('hakkindaKatman').hidden = true; };
+  $('hakkindaKatman').onclick = (e) => { if (e.target === $('hakkindaKatman')) $('hakkindaKatman').hidden = true; };
   $('klavyeTus').onclick = klavyeAc;
   $('klavyeKapat').onclick = klavyeKapat;
   $('klavyeForm').onsubmit = (e) => {

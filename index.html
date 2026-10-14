@@ -14,8 +14,53 @@
     <span class="nokta" id="durumNokta"></span>
     <span id="tvAdiMetin">Kumandam</span>
   </button>
+  <span class="ust-sag">
+  <button class="hakkinda-tus" id="hakkindaTus" aria-label="Hakkında"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v6"/><path d="M12 7.5v.01"/></svg></button>
   <button class="tus guc" data-tus="guc" aria-label="Aç / Kapat"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg></button>
+  </span>
 </header>
+
+<!-- Hakkında -->
+<div class="katman ortali" id="hakkindaKatman" hidden>
+  <section class="hakkinda" role="dialog" aria-labelledby="hakkindaBaslik">
+    <h2 id="hakkindaBaslik">Kumandam</h2>
+    <p class="surum" id="surumMetin"></p>
+    <p>Telefonunu televizyonunun kumandasına çevirir. Kumanda kaybolduğunda, pili bittiğinde ya da
+      sadece elinin altında olmadığında işe yarar.</p>
+
+    <h3>Nasıl kullanılır?</h3>
+    <ol>
+      <li>Telefonun ve televizyonun <b>aynı Wi-Fi ağında</b> olsun.</li>
+      <li>Uygulama ağdaki televizyonları kendisi bulur; listeden seninkine dokun.</li>
+      <li>İlk seferde televizyon ekranında bir kod ya da "İzin ver" sorusu çıkar; kodu gir ya da izin ver.</li>
+      <li>Bundan sonra uygulama açılınca doğrudan kumanda gelir.</li>
+    </ol>
+
+    <h3>Neler var?</h3>
+    <ul>
+      <li>Aç/kapa, ses, kanal, yön tuşları, rakamlar, kaynak, menü</li>
+      <li>Oynat / duraklat / ileri-geri sarma ve renkli tuşlar</li>
+      <li>Dokunmatik alan: kaydırarak gezin, dokunarak seç</li>
+      <li>YouTube'u tek dokunuşla aç</li>
+      <li>Destekleyen televizyonlarda telefon klavyesiyle yazı ve fare imleci</li>
+    </ul>
+
+    <h3>Hangi televizyonlar?</h3>
+    <ul>
+      <li>Samsung Smart TV (2010 ve sonrası)</li>
+      <li>Android TV / Google TV (Vestel, Arçelik, Beko, TCL, Xiaomi, Philips, Sony…)</li>
+      <li>LG webOS</li>
+      <li>Roku</li>
+    </ul>
+
+    <h3>Gizlilik</h3>
+    <p>Reklam yok, üyelik yok, ücret yok. Uygulama hiçbir bilgi toplamaz ve internete bir şey göndermez;
+      telefon yalnızca evindeki televizyonla, kendi ağın üzerinden konuşur.</p>
+
+    <p class="not">Kumandam, televizyon üreticilerinden bağımsız bir uygulamadır.</p>
+    <button class="dugme" type="button" id="hakkindaKapat">Tamam</button>
+  </section>
+</div>
 
 <!-- TV arama -->
 <section class="ekran" id="ekranTarama" hidden>
