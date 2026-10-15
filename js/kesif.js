@@ -30,6 +30,7 @@ export function nesilBul(api) {
     model: d.modelName || d.model || '',
     duid: d.duid || d.id || api.id || '',
     tokenGerekli: d.TokenAuthSupport === 'true' || d.TokenAuthSupport === true,
+    ...(d.wifiMac ? { mac: d.wifiMac } : {}), // kapalıyken ağdan açmak için
   };
 }
 
@@ -80,9 +81,11 @@ export async function adresYokla(tasima, ip, zamanAsimi = 1500) {
   if (acik.roku) {
     const xml = await getir(tasima, `http://${ip}:8060/query/device-info`, zamanAsimi);
     if (xml && /<device-info>/i.test(xml)) {
+      const mac = xmlAlan(xml, 'ethernet-mac') || xmlAlan(xml, 'wifi-mac');
       return {
         ip, nesil: 'roku', ad: xmlAlan(xml, 'friendly-device-name') || xmlAlan(xml, 'user-device-name') || 'Roku',
         model: xmlAlan(xml, 'model-name'), duid: xmlAlan(xml, 'serial-number') || 'roku-' + ip, tokenGerekli: false,
+        ...(mac ? { mac } : {}),
       };
     }
   }

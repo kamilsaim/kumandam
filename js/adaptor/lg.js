@@ -138,7 +138,17 @@ export class LgAdaptor {
   }
 
   async youtube() {
-    await this.istek('ssap://system.launcher/launch', { id: 'youtube.leanback.v4' });
+    await this.uygulamaAc('youtube.leanback.v4');
+  }
+
+  async uygulamaAc(id) {
+    await this.istek('ssap://system.launcher/launch', { id });
+  }
+
+  /** TV'yi kapalıyken ağdan açabilmek için MAC adresi (kablolu varsa o, yoksa Wi-Fi). */
+  async macBul() {
+    const c = await this.istek('ssap://com.webos.service.connectionmanager/getinfo');
+    return c.wiredInfo?.macAddress || c.wifiInfo?.macAddress || '';
   }
 
   kapat() {

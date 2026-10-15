@@ -41,8 +41,10 @@
       <li>Aç/kapa, ses, kanal, yön tuşları, rakamlar, kaynak, menü</li>
       <li>Oynat / duraklat / ileri-geri sarma ve renkli tuşlar</li>
       <li>Dokunmatik alan: kaydırarak gezin, dokunarak seç</li>
-      <li>YouTube'u tek dokunuşla aç</li>
-      <li>Destekleyen televizyonlarda telefon klavyesiyle yazı ve fare imleci</li>
+      <li>YouTube, Netflix, Prime Video, Disney+ ve Spotify'ı tek dokunuşla aç</li>
+      <li>Destekleyen televizyonlarda telefon klavyesiyle yazı (klavyedeki mikrofonla sesle de) ve fare imleci</li>
+      <li>Birden çok televizyonu kaydet, aralarında tek dokunuşla geç</li>
+      <li>Destekleyen televizyonları kapalıyken güç tuşuyla aç</li>
     </ul>
 
     <h3>Hangi televizyonlar?</h3>
@@ -55,17 +57,25 @@
 
     <h3>Gizlilik</h3>
     <p>Reklam yok, üyelik yok, ücret yok. Uygulama hiçbir bilgi toplamaz ve internete bir şey göndermez;
-      telefon yalnızca evindeki televizyonla, kendi ağın üzerinden konuşur.</p>
+      telefon yalnızca evindeki televizyonla, kendi ağın üzerinden konuşur.
+      "Sorun bildir"e basarsan yalnızca senin seçtiğin uygulamayla, senin göndereceğin bir metin hazırlanır.</p>
 
     <p class="not">Kumandam, televizyon üreticilerinden bağımsız bir uygulamadır.</p>
-    <button class="dugme" type="button" id="hakkindaKapat">Tamam</button>
+    <div class="satir">
+      <button class="dugme ikincil" type="button" data-sorun>Sorun bildir</button>
+      <button class="dugme" type="button" id="hakkindaKapat">Tamam</button>
+    </div>
   </section>
 </div>
 
 <!-- TV arama -->
 <section class="ekran" id="ekranTarama" hidden>
-  <h1>Televizyonunu bul</h1>
-  <p class="aciklama" id="taramaDurum">Ağdaki Samsung televizyonlar aranıyor…</p>
+  <div class="kayitli" id="kayitliBolum" hidden>
+    <h2>Kayıtlı televizyonlar</h2>
+    <ul class="tv-listesi" id="kayitliListe"></ul>
+  </div>
+  <h1 id="taramaBaslik">Televizyonunu bul</h1>
+  <p class="aciklama" id="taramaDurum">Ağdaki televizyonlar aranıyor…</p>
   <div class="donen" id="taramaDonen"></div>
   <ul class="tv-listesi" id="tvListesi"></ul>
   <div class="satir">
@@ -79,6 +89,7 @@
     </form>
   </details>
   <p class="not">Telefon ile televizyon aynı Wi-Fi ağında olmalı.<span id="iosNot"> İlk açılışta iPhone "yerel ağ" izni sorar; izin vermezsen televizyon bulunamaz.</span></p>
+  <button class="baglanti" type="button" data-sorun>Sorun mu var? Bildir</button>
 </section>
 
 <!-- Eşleştirme -->
@@ -98,6 +109,7 @@
   </div>
   <p class="hata" id="eslesmeHata"></p>
   <button class="dugme ikincil" id="baskaTv">Başka televizyon seç</button>
+  <button class="baglanti" type="button" data-sorun>Sorun mu var? Bildir</button>
 </section>
 
 <!-- Kumanda -->
@@ -105,7 +117,7 @@
   <div class="satir ust-tuslar">
     <button class="tus" data-tus="kaynak">Kaynak</button>
     <button class="tus" data-tus="smarthub">Smart Hub</button>
-    <button class="tus" id="youtubeTus">YouTube</button>
+    <button class="tus" id="uygulamaTus">Uygulamalar</button>
     <button class="tus" id="klavyeTus" hidden>Klavye</button>
   </div>
 
@@ -114,7 +126,7 @@
       <button class="tus yuvarlak" data-tus="ses+" data-tekrar aria-label="Ses artır">＋</button>
       <span class="etiket">SES</span>
       <button class="tus yuvarlak" data-tus="ses-" data-tekrar aria-label="Ses azalt">－</button>
-      <button class="tus kucuk" data-tus="sessiz" aria-label="Sessiz">🔇</button>
+      <button class="tus kucuk sessiz-tus" data-tus="sessiz" id="sessizTus" aria-label="Sessiz" aria-pressed="false"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor" stroke-width="1.6"/><g class="dalga"><path d="M15.5 9a4 4 0 0 1 0 6"/><path d="M18 6.5a7.5 7.5 0 0 1 0 11"/></g><path class="cizgi" d="M3 3l18 18"/></svg></button>
     </div>
 
     <div class="yon">
@@ -189,10 +201,35 @@
 <div class="katman" id="klavyeKatman" hidden>
   <form class="klavye" id="klavyeForm">
     <input id="klavyeGiris" placeholder="Televizyona yaz…" autocomplete="off" enterkeyhint="send">
+    <p class="not">İpucu: telefon klavyesindeki 🎤 mikrofona basıp söyleyerek de yazabilirsin.</p>
     <div class="satir">
       <button class="dugme" type="submit">Gönder</button>
       <button class="dugme ikincil" type="button" id="klavyeKapat">Kapat</button>
     </div>
+  </form>
+</div>
+
+<!-- Uygulamalar -->
+<div class="katman" id="uygulamaKatman" hidden>
+  <section class="sayfa">
+    <h2>Uygulamalar</h2>
+    <div class="uygulamalar" id="uygulamaListesi"></div>
+    <p class="not">Uygulama televizyonda yüklü değilse açılmaz.</p>
+    <button class="dugme ikincil" type="button" id="uygulamaKapat">Kapat</button>
+  </section>
+</div>
+
+<!-- Kayıtlı TV düzenleme -->
+<div class="katman" id="duzenleKatman" hidden>
+  <form class="sayfa" id="duzenleForm">
+    <h2>Televizyonu düzenle</h2>
+    <p class="not" id="duzenleBilgi"></p>
+    <input id="duzenleAd" placeholder="Ad (ör. Salon, Yatak odası)" maxlength="40" autocomplete="off" enterkeyhint="done">
+    <div class="satir">
+      <button class="dugme" type="submit">Kaydet</button>
+      <button class="dugme ikincil" type="button" id="duzenleKapat">Vazgeç</button>
+    </div>
+    <button class="dugme tehlike" type="button" id="duzenleSil">Listeden sil</button>
   </form>
 </div>
 

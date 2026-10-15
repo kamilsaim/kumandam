@@ -9,11 +9,17 @@ import { AndroidTvAdaptor } from './adaptor/androidtv.js';
 import { LgAdaptor } from './adaptor/lg.js';
 import { RokuAdaptor } from './adaptor/roku.js';
 import { sertifikaUret, baytBase64, base64Bayt } from './kripto/sertifika.js';
+import { tvAnahtari, gorunenAd, listeyeEkle, listedenSil, adVer, taramayaUygula } from './kayitli.js';
+import { macBayt, sihirliPaket, uyandirmaHedefleri, UYANDIRMA_PORTU } from './uyandir.js';
+import { uygulamaIstekleri, uygulamaListesi } from './uygulamalar.js';
+import { gunluk, raporMetni } from './gunluk.js';
 
-const SURUM = '1.1';
+const SURUM = '1.2';
 const $ = (id) => document.getElementById(id);
 const tasima = tasimaOlustur();
 const Titresim = yerelMi() ? yerelEklenti('Haptics') : null;
+const Paylas = yerelMi() ? yerelEklenti('Share') : null;
+const TUR_ADI = { eski: 'Samsung', sifreli: 'Samsung', tizen: 'Samsung', androidtv: 'Android TV', lg: 'LG', roku: 'Roku' };
 
 // ---------- Kalıcı kayıt (yalnız bu cihazda) ----------
 const depo = {
@@ -32,11 +38,19 @@ function cihazKimligi() {
 }
 
 // ---------- Durum ----------
-let tv = depo.oku('tv'); // {ip, nesil, ad, model, duid, tokenGerekli}
+let tv = depo.oku('tv'); // {ip, nesil, ad, model, duid, tokenGerekli, mac?, takmaAd?}
 let adaptor = null;
 let bagli = false;
 let yenidenDeneme = 0;
 let yenidenZamanlayici = null;
+let baglanSayac = 0; // yarıda bırakılan bağlanma denemeleri sonradan ekran değiştirmesin
+let sessiz = false; // TV'nin ses durumu bilinmez; tuşa basışlardan tahmin edilir
+
+// ---------- Kayıtlı televizyonlar ----------
+function kayitliTvler() { return depo.oku('tvler') || []; }
+function kayitliYaz(liste) { depo.yaz('tvler', liste); }
+// 1.1'den gelen: yalnız son TV saklanıyordu, listeye taşınır
+if (tv && !depo.oku('tvler')) kayitliYaz(listeyeEkle([], tv));
 
 // ---------- Ekranlar ----------
 function ekranGoster(ad) {
@@ -55,6 +69,7 @@ function bildir(metin, sure = 2600) {
   b.hidden = false;
   clearTimeout(bildirimZaman);
   bildirimZaman = setTimeout(() => { b.hidden = true; }, sure);
+  gunluk('Bildirim: ' + metin);
 }
 
 function titret() {
@@ -62,36 +77,92 @@ function titret() {
 }
 
 // ---------- Tarama ----------
+function tvSatiri(bilgi, { agda = false, duzenle = null } = {}) {
+  const li = document.createElement('li');
+  const b = document.createElement('button');
+  b.innerHTML = '<span><i class="nokta"></i><b></b></span><small></small>';
+  if (agda) b.querySelector('.nokta').classList.add('bagli');
+  if (!duzenle) b.querySelector('.nokta').remove();
+  b.querySelector('b').textContent = gorunenAd(bilgi);
+  b.lastChild.textContent = `${bilgi.model || TUR_ADI[bilgi.nesil] || 'TV'} · ${bilgi.ip}`;
+  b.onclick = () => tvSec(bilgi);
+  li.append(b);
+  if (duzenle) {
+    const d = document.createElement('button');
+    d.className = 'tus duzenle';
+    d.setAttribute('aria-label', gorunenAd(bilgi) + ' düzenle');
+    d.textContent = '✎';
+    d.onclick = duzenle;
+    li.append(d);
+  }
+  return li;
+}
+
+let agdakiler = new Set(); // bu taramada ağda görülen kayıtlı TV'lerin anahtarları
+function kayitliCiz() {
+  const liste = kayitliTvler();
+  $('kayitliBolum').hidden = !liste.length;
+  $('taramaBaslik').textContent = liste.length ? 'Yeni televizyon ekle' : 'Televizyonunu bul';
+  const ul = $('kayitliListe');
+  ul.innerHTML = '';
+  for (const k of liste) {
+    const li = tvSatiri(k, { agda: agdakiler.has(tvAnahtari(k)), duzenle: () => duzenleAc(k) });
+    if (tv && tvAnahtari(tv) === tvAnahtari(k)) li.classList.add('secili');
+    ul.append(li);
+  }
+}
+
+let taramaSayac = 0;
 async function taramayiBaslat() {
+  const bu = ++taramaSayac;
+  // Bağlı değilse süren deneme bırakılır; liste açıkken kumanda ekranına atlanmasın
+  clearTimeout(yenidenZamanlayici);
+  if (!bagli) {
+    baglanSayac++;
+    adaptor?.kapat();
+    adaptor = null;
+  }
   ekranGoster('ekranTarama');
   $('tvAdiMetin').textContent = 'Kumandam';
   noktaDurumu('');
+  agdakiler = new Set();
+  kayitliCiz();
   const liste = $('tvListesi');
   liste.innerHTML = '';
   $('taramaDonen').hidden = false;
   $('taramaDurum').textContent = 'Ağdaki televizyonlar aranıyor…';
+  gunluk('Tarama başladı');
 
   const ekle = (bulunan) => {
-    const li = document.createElement('li');
-    const b = document.createElement('button');
-    b.innerHTML = '<span></span><small></small>';
-    b.firstChild.textContent = bulunan.ad;
-    b.lastChild.textContent = `${bulunan.model || 'Samsung'} · ${bulunan.ip}`;
-    b.onclick = () => tvSec(bulunan);
-    li.append(b);
-    liste.append(li);
+    if (bu !== taramaSayac) return;
+    // Kayıtlı TV ağda görüldüyse yeni olarak listelenmez; kaydı tazelenir (IP değişmiş olabilir)
+    const s = taramayaUygula(kayitliTvler(), bulunan);
+    if (s.kayitli) {
+      kayitliYaz(s.liste);
+      agdakiler.add(tvAnahtari(bulunan));
+      kayitliCiz();
+      return;
+    }
+    liste.append(tvSatiri(bulunan));
   };
 
   try {
     const bulunan = await agiTara(tasima, { eslesti: ekle });
-    $('taramaDurum').textContent = bulunan.length
-      ? (bulunan.length === 1 ? 'Televizyon bulundu.' : 'Hangi televizyonu kumanda edeceksin?')
-      : 'Televizyon bulunamadı. Televizyon açık ve aynı Wi-Fi ağında mı? Şu an Samsung, Android TV, LG ve Roku destekleniyor.';
-    if (bulunan.length === 1 && !depo.oku('tv')) tvSec(bulunan[0]);
+    if (bu !== taramaSayac) return;
+    gunluk(`Tarama bitti: ${bulunan.length} TV ${bulunan.map((x) => `${x.nesil}@${x.ip}`).join(' ')}`);
+    const kayitliSayisi = kayitliTvler().length;
+    const yeni = bulunan.filter((x) => !agdakiler.has(tvAnahtari(x)));
+    $('taramaDurum').textContent = yeni.length
+      ? (yeni.length === 1 ? 'Yeni bir televizyon bulundu.' : 'Hangi televizyonu kumanda edeceksin?')
+      : kayitliSayisi
+        ? (bulunan.length ? 'Ağda yeni televizyon yok.' : 'Ağda açık televizyon bulunamadı. Kayıtlı bir televizyona dokunursan yine de bağlanmayı dener.')
+        : 'Televizyon bulunamadı. Televizyon açık ve aynı Wi-Fi ağında mı? Şu an Samsung, Android TV, LG ve Roku destekleniyor.';
+    if (bulunan.length === 1 && !kayitliSayisi && !tv) tvSec(bulunan[0]);
   } catch (e) {
     $('taramaDurum').textContent = e.message;
+    gunluk('Tarama hatası: ' + e.message);
   } finally {
-    $('taramaDonen').hidden = true;
+    if (bu === taramaSayac) $('taramaDonen').hidden = true;
   }
 }
 
@@ -99,13 +170,77 @@ async function elleBaglan(ip) {
   $('taramaDurum').textContent = ip + ' yoklanıyor…';
   const bulunan = await adresYokla(tasima, ip, 3000);
   if (bulunan) tvSec(bulunan);
-  else $('taramaDurum').textContent = ip + ' adresinde Samsung televizyon bulunamadı.';
+  else $('taramaDurum').textContent = ip + ' adresinde desteklenen bir televizyon bulunamadı.';
 }
 
 function tvSec(secilen) {
-  tv = secilen;
+  // Zaten bağlı olduğu TV'ye dokunduysa yeniden bağlanmadan kumandaya dön
+  if (bagli && tv && tvAnahtari(tv) === tvAnahtari(secilen)) {
+    $('tvAdiMetin').textContent = gorunenAd(tv);
+    noktaDurumu('bagli');
+    ekranGoster('ekranKumanda');
+    return;
+  }
+  const s = taramayaUygula(kayitliTvler(), secilen);
+  if (s.kayitli) kayitliYaz(s.liste);
+  tv = s.kayitli || secilen;
   depo.yaz('tv', tv);
+  sessizAyarla(false);
   baglan();
+}
+
+// ---------- Kayıtlı TV düzenleme ----------
+let duzenlenen = null;
+function duzenleAc(k) {
+  duzenlenen = k;
+  $('duzenleBilgi').textContent = [k.ad, k.model || TUR_ADI[k.nesil], k.ip].filter(Boolean).join(' · ');
+  $('duzenleAd').value = k.takmaAd || '';
+  $('duzenleSil').classList.remove('emin');
+  $('duzenleSil').textContent = 'Listeden sil';
+  $('duzenleKatman').hidden = false;
+}
+
+function duzenleKapat() {
+  $('duzenleKatman').hidden = true;
+  $('duzenleAd').blur();
+  duzenlenen = null;
+}
+
+function duzenleKaydet() {
+  if (!duzenlenen) return;
+  const a = tvAnahtari(duzenlenen);
+  const liste = adVer(kayitliTvler(), a, $('duzenleAd').value);
+  kayitliYaz(liste);
+  if (tv && tvAnahtari(tv) === a) {
+    tv = liste.find((x) => tvAnahtari(x) === a) || tv;
+    depo.yaz('tv', tv);
+  }
+  duzenleKapat();
+  kayitliCiz();
+}
+
+function duzenleSil() {
+  if (!duzenlenen) return;
+  const b = $('duzenleSil');
+  if (!b.classList.contains('emin')) { // yanlışlıkla silinmesin: ikinci basışta siler
+    b.classList.add('emin');
+    b.textContent = 'Emin misin? Sil';
+    return;
+  }
+  const a = tvAnahtari(duzenlenen);
+  kayitliYaz(listedenSil(kayitliTvler(), a));
+  depo.sil('kimlik.' + a); // eşleşme de unutulur
+  gunluk('Kayıtlı TV silindi: ' + duzenlenen.nesil);
+  if (tv && tvAnahtari(tv) === a) {
+    clearTimeout(yenidenZamanlayici);
+    adaptor?.kapat();
+    adaptor = null;
+    bagli = false;
+    tv = null;
+    depo.sil('tv');
+  }
+  duzenleKapat();
+  kayitliCiz();
 }
 
 // ---------- Bağlantı ----------
@@ -138,22 +273,25 @@ function kodBicimi() {
     : { uzunluk: 4, desen: /^\d{4}$/, metin: "Televizyon ekranındaki 4 haneli PIN'i gir.", klavye: 'numeric' };
 }
 
-function kimlikAnahtari() { return 'kimlik.' + (tv.duid || tv.ip); }
+function kimlikAnahtari() { return 'kimlik.' + tvAnahtari(tv); }
 
 async function baglan() {
+  const bu = ++baglanSayac;
   clearTimeout(yenidenZamanlayici);
   adaptor?.kapat();
   bagli = false;
-  $('tvAdiMetin').textContent = tv.ad;
+  $('tvAdiMetin').textContent = gorunenAd(tv);
   noktaDurumu('baglaniyor');
   adaptor = adaptorOlustur();
   adaptor.olay = adaptorOlayi;
+  gunluk(`Bağlanılıyor: ${tv.nesil} ${tv.model || ''} @${tv.ip}`);
 
   const kayitli = depo.oku(kimlikAnahtari());
   try {
     const s = await adaptor.baglan(kayitli, (d) => {
-      if (d === 'izin-bekleniyor') eslesmeGoster('izin');
+      if (d === 'izin-bekleniyor' && bu === baglanSayac) eslesmeGoster('izin');
     });
+    if (bu !== baglanSayac) return;
     if (s.durum === 'pin-gerekli') {
       eslesmeGoster('pin');
       await adaptor.pinGoster();
@@ -162,7 +300,9 @@ async function baglan() {
     if (s.kimlik) depo.yaz(kimlikAnahtari(), s.kimlik);
     bagliOldu();
   } catch (e) {
+    if (bu !== baglanSayac) return;
     noktaDurumu('kopuk');
+    gunluk('Bağlantı hatası: ' + e.message);
     if (!$('ekranEslesme').hidden) {
       $('eslesmeHata').textContent = e.message;
       return;
@@ -180,18 +320,65 @@ function bagliOldu() {
   yenidenDeneme = 0;
   noktaDurumu('bagli');
   ekranGoster('ekranKumanda');
+  gunluk('Bağlandı');
+  // Bağlanılan her TV kayıtlı listeye girer (son kullanılan başta)
+  kayitliYaz(listeyeEkle(kayitliTvler(), tv));
   const y = adaptor.yetenekler();
   // H/J'de SendInputString YouTube'da reddedildi (0001); klavye yalnız destekleyen nesilde.
   $('klavyeTus').hidden = !y.klavye;
   $('modSecici').hidden = !y.fare;
-  // 2013 öncesi Samsung'da DIAL yok
-  $('youtubeTus').hidden = tv.nesil === 'eski';
+  // 2013 öncesi Samsung'da uygulama açma yok
+  $('uygulamaTus').hidden = !uygulamaListesi(tv.nesil).length;
   if (!y.fare) modSec('yon');
+  macOgren();
+}
+
+// LG MAC adresini bağlıyken söyler; kapalıyken açabilmek için saklanır
+async function macOgren() {
+  if (macBayt(tv.mac) || !adaptor.macBul) return;
+  const a = adaptor;
+  try {
+    const mac = await a.macBul();
+    if (a !== adaptor || !macBayt(mac)) return;
+    tv = { ...tv, mac };
+    depo.yaz('tv', tv);
+    kayitliYaz(listeyeEkle(kayitliTvler(), tv));
+    gunluk('MAC öğrenildi');
+  } catch (e) {
+    gunluk('MAC öğrenilemedi: ' + e.message);
+  }
+}
+
+// ---------- Kapalı TV'yi açma (Wake-on-LAN) ----------
+async function tvyiUyandir() {
+  const paket = sihirliPaket(tv.mac);
+  const yerel = await tasima.yerelIp().catch(() => null);
+  let giden = 0;
+  for (const h of uyandirmaHedefleri(tv.ip, yerel)) {
+    try {
+      await tasima.udpGonder(h, UYANDIRMA_PORTU, paket);
+      giden++;
+    } catch (e) {
+      gunluk(`Uyandırma ${h}: ${e.message}`);
+    }
+  }
+  gunluk(`Uyandırma paketi ${giden} adrese gitti`);
+  if (!giden) {
+    bildir('TV açılamadı: ağ paketi gönderilemedi');
+    return;
+  }
+  bildir('TV açılıyor… birkaç saniye sürebilir', 5000);
+  clearTimeout(yenidenZamanlayici);
+  yenidenDeneme = 0;
+  yenidenZamanlayici = setTimeout(baglan, 4000); // TV'nin ağa gelmesini bekle
 }
 
 function yenidenBaglanmayiPlanla(hata) {
+  if (!$('ekranTarama').hidden) return; // kullanıcı TV listesinde
   if (yenidenDeneme >= 5) {
-    bildir("TV'ye ulaşılamadı. TV açık mı? Adına dokunup tekrar arayabilirsin.", 5000);
+    bildir(macBayt(tv?.mac)
+      ? "TV'ye ulaşılamadı. TV kapalıysa güç tuşuyla açmayı dene."
+      : "TV'ye ulaşılamadı. TV açık mı? Adına dokunup tekrar arayabilirsin.", 5000);
     return;
   }
   const bekle = Math.min(1000 * 2 ** yenidenDeneme, 15000);
@@ -201,6 +388,7 @@ function yenidenBaglanmayiPlanla(hata) {
 }
 
 function adaptorOlayi(ad, deger) {
+  if (ad === 'koptu' || ad === 'hata') gunluk(`Olay: ${ad}${deger ? ' ' + deger : ''}`);
   if (ad === 'koptu') {
     bagli = false;
     noktaDurumu('kopuk');
@@ -218,7 +406,8 @@ function eslesmeGoster(tur) {
   $('eslesmeHata').textContent = '';
   $('pinForm').hidden = tur !== 'pin';
   $('izinBekle').hidden = tur !== 'izin';
-  $('eslesmeBaslik').textContent = tv.ad + ' ile eşleş';
+  $('eslesmeBaslik').textContent = gorunenAd(tv) + ' ile eşleş';
+  gunluk('Eşleşme ekranı: ' + tur);
   if (tur === 'pin') {
     const k = kodBicimi();
     const g = $('pinGiris');
@@ -243,6 +432,7 @@ async function pinGonder(pin) {
     depo.yaz(kimlikAnahtari(), kimlik);
     await baglan();
   } catch (e) {
+    gunluk('Eşleşme hatası: ' + e.message);
     $('eslesmeHata').textContent = /PIN|Kod yanlış/.test(e.message) ? 'Kod tutmadı. Ekrandakini tekrar gir.' : e.message;
     $('pinGiris').value = '';
   } finally {
@@ -253,15 +443,30 @@ async function pinGonder(pin) {
 // ---------- Tuşlar ----------
 function tusGonder(ad) {
   if (!bagli) {
+    // Kapalı TV: MAC biliniyorsa güç tuşu ağdan açar
+    if (ad === 'guc' && macBayt(tv?.mac)) {
+      titret();
+      tvyiUyandir();
+      return;
+    }
     bildir('TV bağlı değil');
     return;
   }
   try {
     adaptor.tus(tusKodu(ad, tv.nesil));
     titret();
+    // Sessiz aç/kapa; ses tuşları TV'lerde sessizi kaldırır
+    if (ad === 'sessiz') sessizAyarla(!sessiz);
+    else if (ad === 'ses+' || ad === 'ses-') sessizAyarla(false);
   } catch (e) {
     bildir(e.message);
   }
+}
+
+function sessizAyarla(durum) {
+  sessiz = durum;
+  $('sessizTus').setAttribute('aria-pressed', String(durum));
+  $('sessizTus').setAttribute('aria-label', durum ? 'Sesi aç' : 'Sessiz');
 }
 
 function tuslariBagla() {
@@ -362,22 +567,74 @@ function klavyeKapat() {
   $('klavyeGiris').blur();
 }
 
-// ---------- YouTube (DIAL) ----------
-async function youtubeAc() {
+// ---------- Uygulamalar ----------
+function uygulamalariGoster() {
   if (!tv) return;
-  try {
-    if (adaptor?.youtube) {
-      // Android TV, LG, Roku: kendi uygulama başlatma komutu
-      await adaptor.youtube();
-    } else {
-      // Samsung: DIAL
-      const c = await tasima.http({ yontem: 'POST', url: `http://${tv.ip}:8080/ws/apps/YouTube`, govde: '', zamanAsimi: 6000 });
-      if (c.durum < 200 || c.durum >= 300) throw new Error(String(c.durum));
+  const kutu = $('uygulamaListesi');
+  kutu.innerHTML = '';
+  for (const u of uygulamaListesi(tv.nesil)) {
+    const b = document.createElement('button');
+    b.className = 'uygulama';
+    b.textContent = u.etiket;
+    b.style.background = u.renk;
+    b.onclick = () => uygulamaBaslat(u);
+    kutu.append(b);
+  }
+  $('uygulamaKatman').hidden = false;
+}
+
+async function uygulamaBaslat(u) {
+  $('uygulamaKatman').hidden = true;
+  if (!bagli) {
+    bildir('TV bağlı değil');
+    return;
+  }
+  let son;
+  // Samsung Tizen'de birden çok kimlik var (eski/yeni); ilk tutan kullanılır
+  for (const i of uygulamaIstekleri(tv.nesil, u.ad, tv.ip)) {
+    try {
+      if (i.tur === 'adaptor') {
+        await adaptor.uygulamaAc(i.deger);
+      } else {
+        const c = await tasima.http({ yontem: 'POST', url: i.url, govde: '', zamanAsimi: 6000 });
+        if (c.durum < 200 || c.durum >= 300) throw new Error(String(c.durum));
+      }
+      titret();
+      bildir(u.etiket + ' açılıyor…');
+      return;
+    } catch (e) {
+      son = e;
+      gunluk(`${u.etiket} açılamadı (${i.url || i.deger}): ${e.message}`);
     }
-    titret();
-    bildir('YouTube açılıyor…');
+  }
+  bildir(u.etiket + ' açılamadı' + (son?.message ? ' (' + son.message + ')' : ''));
+}
+
+// ---------- Sorun bildir ----------
+async function sorunBildir() {
+  const metin = raporMetni({
+    surum: SURUM,
+    platform: window.Capacitor?.getPlatform?.() || 'web',
+    cihaz: navigator.userAgent,
+    tv,
+    bagli,
+    kayitliSayisi: kayitliTvler().length,
+  });
+  const panoya = async (onEk) => {
+    try {
+      await navigator.clipboard.writeText(metin);
+      bildir(onEk + 'Sorun kaydı panoya kopyalandı; WhatsApp ya da e-postaya yapıştırabilirsin.', 5000);
+    } catch {
+      bildir('Sorun kaydı paylaşılamadı');
+    }
+  };
+  try {
+    if (Paylas) await Paylas.share({ title: 'Kumandam sorun kaydı', text: metin, dialogTitle: 'Sorun kaydını gönder' });
+    else if (navigator.share) await navigator.share({ title: 'Kumandam sorun kaydı', text: metin });
+    else await panoya('');
   } catch (e) {
-    bildir('YouTube açılamadı' + (e.message ? ' (' + e.message + ')' : ''));
+    // Kullanıcı paylaşım penceresini kapattıysa bir şey yapma
+    if (e?.name !== 'AbortError' && !/cancel|abort|iptal/i.test(e?.message || '')) await panoya('Paylaşılamadı. ');
   }
 }
 
@@ -397,7 +654,15 @@ function olaylariBagla() {
   $('pinGiris').oninput = () => { const p = $('pinGiris').value.trim(); if (kodBicimi().desen.test(p)) pinGonder(p); };
   $('pinYenile').onclick = () => adaptor?.pinGoster().catch((e) => { $('eslesmeHata').textContent = e.message; });
 
-  $('youtubeTus').onclick = youtubeAc;
+  $('uygulamaTus').onclick = uygulamalariGoster;
+  $('uygulamaKapat').onclick = () => { $('uygulamaKatman').hidden = true; };
+  $('uygulamaKatman').onclick = (e) => { if (e.target === $('uygulamaKatman')) $('uygulamaKatman').hidden = true; };
+  $('duzenleForm').onsubmit = (e) => { e.preventDefault(); duzenleKaydet(); };
+  $('duzenleKapat').onclick = duzenleKapat;
+  $('duzenleSil').onclick = duzenleSil;
+  $('duzenleKatman').onclick = (e) => { if (e.target === $('duzenleKatman')) duzenleKapat(); };
+  for (const b of document.querySelectorAll('[data-sorun]')) b.onclick = sorunBildir;
+
   $('surumMetin').textContent = 'Sürüm ' + SURUM + ' · reklamsız ve ücretsiz';
   $('hakkindaTus').onclick = () => { $('hakkindaKatman').hidden = false; };
   $('hakkindaKapat').onclick = () => { $('hakkindaKatman').hidden = true; };
@@ -418,14 +683,18 @@ function olaylariBagla() {
 
   // Uygulama arka plandan dönünce bağlantıyı tazele
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && tv && !bagli && $('ekranEslesme').hidden) {
+    if (document.visibilityState === 'visible' && tv && !bagli && $('ekranEslesme').hidden && $('ekranTarama').hidden) {
       yenidenDeneme = 0;
       baglan();
     }
   });
 }
 
+window.addEventListener('error', (e) => gunluk('JS hatası: ' + e.message));
+window.addEventListener('unhandledrejection', (e) => gunluk('Yakalanmayan hata: ' + (e.reason?.message || e.reason)));
+
 // Yerel ağ izni notu yalnız iPhone'da
 $('iosNot').hidden = window.Capacitor?.getPlatform?.() !== 'ios';
 olaylariBagla();
+gunluk(`Kumandam ${SURUM} açıldı (${window.Capacitor?.getPlatform?.() || 'web'})`);
 if (tv) baglan(); else taramayiBaslat();

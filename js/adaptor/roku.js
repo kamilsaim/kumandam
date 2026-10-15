@@ -33,7 +33,11 @@ export class RokuAdaptor {
   }
 
   async youtube() {
-    await this.post('launch/837');
+    await this.uygulamaAc('837');
+  }
+
+  async uygulamaAc(kanal) {
+    await this.post('launch/' + kanal);
   }
 
   kapat() {}

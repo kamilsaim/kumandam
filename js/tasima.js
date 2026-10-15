@@ -11,6 +11,7 @@
 //   tlsAc(host, port, {sertifika, pkcs8, pkcs1}, {veri, kapandi})
 //        → {gonder(Uint8Array), kapat(), sunucuSertifika: Uint8Array (DER)}
 //        İstemci sertifikalı TLS (Android TV). Sunucunun kendi imzalı sertifikası kabul edilir.
+//   udpGonder(host, port, Uint8Array) → tek UDP paketi (yayın adresi de olabilir; Wake-on-LAN)
 
 function base64Bayt(b64) {
   const s = atob(b64);
@@ -87,6 +88,9 @@ function yerelTasima(P) {
         kapat: () => { P.tcpKapat({ id }); },
       };
     },
+    async udpGonder(host, port, bayt) {
+      await P.udpGonder({ host, port, veri: baytBase64(bayt) });
+    },
     async tlsAc(host, port, s, olaylar) {
       const id = yeniKimlik();
       tcpDinleyici.set(id, olaylar);
@@ -128,6 +132,7 @@ function tarayiciTasima() {
     },
     async tcpAc() { throw new Error('Tarayıcıda TCP yok'); },
     async tlsAc() { throw new Error('Tarayıcıda TLS soketi yok'); },
+    async udpGonder() { throw new Error('Tarayıcıda UDP yok'); },
   };
 }
 
