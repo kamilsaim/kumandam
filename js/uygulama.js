@@ -304,8 +304,10 @@ async function baglan() {
   bagli = false;
   $('tvAdiMetin').textContent = gorunenAd(tv);
   noktaDurumu('baglaniyor');
-  adaptor = adaptorOlustur();
-  adaptor.olay = adaptorOlayi;
+  const yeni = adaptorOlustur();
+  adaptor = yeni;
+  // Kapatılmış eski bağlantının geç gelen 'koptu' olayı yeniden bağlanmayı başlatıp tarama ekranından atmasın
+  yeni.olay = (ad, deger) => { if (adaptor === yeni) adaptorOlayi(ad, deger); };
   gunluk(`Bağlanılıyor: ${tv.nesil} ${tv.model || ''} @${tv.ip}`);
 
   const kayitli = depo.oku(kimlikAnahtari());
