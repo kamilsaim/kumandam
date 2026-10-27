@@ -1,6 +1,6 @@
 // Kumandam — arayüz ve akış: tarama → eşleştirme → kumanda.
 import { tasimaOlustur, yerelMi, yerelEklenti } from './tasima.js';
-import { agiTara, adresYokla } from './kesif.js';
+import { agiTara, adresYokla, portlariTani, ipDuzelt } from './kesif.js';
 import { tusKodu } from './tuslar.js';
 import { SifreliAdaptor } from './adaptor/sifreli.js';
 import { TizenAdaptor } from './adaptor/tizen.js';
@@ -166,11 +166,33 @@ async function taramayiBaslat() {
   }
 }
 
-async function elleBaglan(ip) {
+async function elleBaglan(metin) {
+  const ip = ipDuzelt(metin);
+  if (!ip) {
+    $('taramaDurum').textContent = 'IP adresi 192.168.1.50 biçiminde olmalı (4 sayı, aralarında nokta).';
+    return;
+  }
+  $('elleIp').value = ip;
   $('taramaDurum').textContent = ip + ' yoklanıyor…';
-  const bulunan = await adresYokla(tasima, ip, 3000);
-  if (bulunan) tvSec(bulunan);
-  else $('taramaDurum').textContent = ip + ' adresinde desteklenen bir televizyon bulunamadı.';
+  try {
+    const bulunan = await adresYokla(tasima, ip, 4000);
+    if (bulunan) {
+      taramaSayac++; // süren taramanın sonucu bu seçimi ezmesin
+      tvSec(bulunan);
+      return;
+    }
+    $('taramaDurum').textContent = ip + ' inceleniyor…';
+    const { portlar, ipucu } = await portlariTani(tasima, ip, 3000);
+    gunluk(`Elle IP ${ip}: TV tanınmadı, açık portlar: ${portlar.join(',') || 'yok'}`);
+    $('taramaDurum').textContent = !portlar.length
+      ? ip + ' adresine ulaşılamadı. Televizyon açık mı, adres doğru mu, telefon aynı Wi-Fi ağında mı?'
+      : ip + ' adresinde desteklenen bir televizyon bulunamadı. Açık portlar: ' + portlar.join(', ')
+        + (ipucu.length ? ' (olası tür: ' + ipucu.join(', ') + ')' : '')
+        + '. Bu bilgiyi geliştiriciye iletirsen destek eklenebilir.';
+  } catch (e) {
+    $('taramaDurum').textContent = ip + ': ' + e.message;
+    gunluk(`Elle IP ${ip} hatası: ${e.message}`);
+  }
 }
 
 function tvSec(secilen) {
@@ -647,8 +669,14 @@ function olaylariBagla() {
 
   $('tvAdi').onclick = taramayiBaslat;
   $('tekrarAra').onclick = taramayiBaslat;
-  $('baskaTv').onclick = () => { adaptor?.kapat(); taramayiBaslat(); };
+  $('baskaTv').onclick = taramayiBaslat;
   $('elleForm').onsubmit = (e) => { e.preventDefault(); const ip = $('elleIp').value.trim(); if (ip) elleBaglan(ip); };
+  // Türkçe sayı klavyesinde nokta yerine virgül var: yazarken noktaya çevir
+  $('elleIp').oninput = () => {
+    const g = $('elleIp');
+    const yeni = g.value.replace(/[,\s]/g, '.').replace(/[^\d.]/g, '');
+    if (yeni !== g.value) g.value = yeni;
+  };
 
   $('pinForm').onsubmit = (e) => { e.preventDefault(); const p = $('pinGiris').value.trim(); if (kodBicimi().desen.test(p)) pinGonder(p); };
   $('pinGiris').oninput = () => { const p = $('pinGiris').value.trim(); if (kodBicimi().desen.test(p)) pinGonder(p); };

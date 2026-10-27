@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { nesilBul, adresYokla, agiTara } from '../js/kesif.js';
+import { nesilBul, adresYokla, agiTara, portlariTani, ipDuzelt } from '../js/kesif.js';
 import { tusKodu } from '../js/tuslar.js';
 
 // UE40H6200'ün gerçek cevabı (2026-10-14)
@@ -91,4 +91,29 @@ test('tusKodu: ortak ve nesle göre', () => {
   assert.equal(tusKodu('0', 'androidtv'), 7);
   assert.equal(tusKodu('guc', 'lg'), 'ssap://system/turnOff');
   assert.equal(tusKodu('ok', 'roku'), 'Select');
+});
+
+test('adresYokla: Samsung cevabında yıl öneki yok → tizen', async () => {
+  const api = { type: 'Samsung SmartTV', device: { type: 'Samsung SmartTV', model: 'UA55TU8000', name: '[TV] Oda', duid: 'uuid:u' } };
+  const tv = await adresYokla(sahte({ api: { '10.0.0.9': api } }), '10.0.0.9');
+  assert.deepEqual([tv.nesil, tv.ad, tv.duid], ['tizen', 'Oda', 'uuid:u']);
+});
+
+test('adresYokla: 8001 cevapsız ama 8001+8002 açık → tizen', async () => {
+  const t = sahte({ acik: ['10.0.0.9:8001', '10.0.0.9:8002'] });
+  assert.equal((await adresYokla(t, '10.0.0.9')).nesil, 'tizen');
+});
+
+test('portlariTani: açık portlar ve olası tür', async () => {
+  const r = await portlariTani(sahte({ acik: ['10.0.0.9:1925', '10.0.0.9:80'] }), '10.0.0.9');
+  assert.deepEqual(r, { portlar: [80, 1925], ipucu: ['Philips'] });
+});
+
+test('ipDuzelt: virgül, boşluk ve baştaki sıfırlar', () => {
+  assert.equal(ipDuzelt('192,168,1,50'), '192.168.1.50');
+  assert.equal(ipDuzelt(' 192.168.001.050 '), '192.168.1.50');
+  assert.equal(ipDuzelt('192..168.1.5'), '192.168.1.5');
+  assert.equal(ipDuzelt('192.168.1'), null);
+  assert.equal(ipDuzelt('192.168.1.300'), null);
+  assert.equal(ipDuzelt(''), null);
 });

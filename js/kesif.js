@@ -4,6 +4,7 @@
 
 const PORTLAR = {
   samsungApi: 8001,
+  samsungGuvenli: 8002,
   samsungEski: 55000,
   samsungEslesme: 8080,
   samsungKomut: 8000,
@@ -57,10 +58,23 @@ export async function adresYokla(tasima, ip, zamanAsimi = 1500) {
 
   if (acik.samsungApi) {
     const govde = await getir(tasima, `http://${ip}:8001/api/v2/`, zamanAsimi);
-    try {
-      const tv = govde && nesilBul(JSON.parse(govde));
-      if (tv) return { ip, ...tv };
-    } catch { /* JSON değil */ }
+    let api = null;
+    try { api = govde && JSON.parse(govde); } catch { /* JSON değil */ }
+    const tv = nesilBul(api);
+    if (tv) return { ip, ...tv };
+    // Model alanı yıl önekisiz gelen Samsung'lar (ör. bazı 2016+ ve bölgesel modeller): Tizen say
+    const d = api?.device;
+    if (d && /samsung/i.test(api.type || d.type || '') && !/^\d{2}_/.test(d.model || '')) {
+      return {
+        ip, nesil: 'tizen', ad: (d.name || api.name || 'Samsung TV').replace(/^\[TV\]\s*/, ''),
+        model: d.modelName || d.model || '', duid: d.duid || d.id || api.id || 'tizen-' + ip,
+        tokenGerekli: d.TokenAuthSupport === 'true' || d.TokenAuthSupport === true,
+      };
+    }
+  }
+  // 8001 cevap vermedi (TV yeni açılıyor) ama 8001+8002 açık: 2016+ Tizen
+  if (acik.samsungApi && acik.samsungGuvenli) {
+    return { ip, nesil: 'tizen', ad: 'Samsung TV', model: '', duid: 'tizen-' + ip, tokenGerekli: true };
   }
   if (acik.samsungEski) {
     return { ip, nesil: 'eski', ad: 'Samsung TV', model: '', duid: 'eski-' + ip, tokenGerekli: false };
@@ -96,6 +110,34 @@ export async function adresYokla(tasima, ip, zamanAsimi = 1500) {
     return { ip, nesil: 'lg', ad: 'LG TV', model: 'webOS', duid: 'lg-' + ip, tokenGerekli: false };
   }
   return null;
+}
+
+// Tanınmayan cihazda neyin açık olduğunu göstermek için (elle IP girişinde): bilinen TV portları
+const TANI_PORTLARI = {
+  80: '', 443: '', 1925: 'Philips', 1926: 'Philips', 3000: 'LG', 3001: 'LG', 6466: 'Android TV', 6467: 'Android TV',
+  7345: '', 8000: 'Samsung', 8001: 'Samsung', 8002: 'Samsung', 8008: 'Chromecast', 8009: 'Chromecast',
+  8060: 'Roku', 8080: '', 9080: '', 10002: 'Sharp', 36669: 'Hisense', 55000: 'Samsung/Panasonic', 56789: 'Vestel',
+  56790: 'Vestel',
+};
+
+/**
+ * Adreste hangi bilinen portların açık olduğunu döndürür.
+ * @returns {Promise<{portlar: number[], ipucu: string[]}>}
+ */
+export async function portlariTani(tasima, ip, zamanAsimi = 2000) {
+  const liste = Object.keys(TANI_PORTLARI).map(Number);
+  const acik = await Promise.all(liste.map((p) => tasima.portAcikMi(ip, p, zamanAsimi).catch(() => false)));
+  const portlar = liste.filter((_, i) => acik[i]);
+  const ipucu = [...new Set(portlar.map((p) => TANI_PORTLARI[p]).filter(Boolean))];
+  return { portlar, ipucu };
+}
+
+/** "192,168,1,5" ya da boşluklu yazımı düzeltir; geçerli IPv4 değilse null. */
+export function ipDuzelt(metin) {
+  const s = String(metin || '').trim().replace(/[,\s]+/g, '.').replace(/\.{2,}/g, '.');
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(s);
+  if (!m || m.slice(1).some((x) => Number(x) > 255)) return null;
+  return m.slice(1).map(Number).join('.');
 }
 
 async function wsAcilirMi(tasima, url, zamanAsimi) {
